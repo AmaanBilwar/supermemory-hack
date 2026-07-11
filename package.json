@@ -1,0 +1,20 @@
+{
+  "name": "supermem-agent-context-bus",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/main.ts",
+    "typecheck": "tsc --noEmit",
+    "prepare": "./scripts/prepare-effect.sh"
+  },
+  "dependencies": {
+    "@effect/platform-node": "beta",
+    "effect": "beta"
+  },
+  "devDependencies": {
+    "@types/node": "latest",
+    "tsx": "latest",
+    "typescript": "latest"
+  }
+}
