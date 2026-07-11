@@ -1,36 +1,73 @@
-# Scaffold Notes
+# MVP Architecture
 
-## Product Shape
+## Product Boundary
 
-This scaffold implements the smallest demoable version of the shared-agent memory bus:
+Agent Context Bus is an API-first wiring layer, not another memory database.
 
-- `POST /api/memories` stores a memory as a Supermemory document with repo and agent metadata.
-- `POST /api/search` searches the current repo container with hybrid search.
-- `GET /api/handoff` turns search results into a pasteable Markdown handoff for the next agent.
-- `GET /api/scope` shows the current repo scope and derived Supermemory container tag.
+Supermemory Local owns:
+
+- Local memory embeddings and persistence.
+- Semantic memory search.
+- Local persistence at `localhost:6767`.
+
+Agent Context Bus owns:
+
+- Stable repo scoping.
+- Agent-origin metadata.
+- Start-of-task context formatting.
+- Cross-agent handoff storage and Markdown output.
+- Agent instruction and skill installation.
+
+## Interfaces
+
+- `agent-context-bus init` installs `AGENTS.md` instructions and skills.
+- `agent-context-bus dev` starts the local API and inspector.
+- `agent-context-bus context` retrieves task-specific Markdown context.
+- `agent-context-bus remember` stores durable knowledge.
+- `agent-context-bus search` performs explicit semantic search.
+- `agent-context-bus handoff` stores and prints a portable handoff.
+
+The CLI is implemented with Effect v4's `effect/unstable/cli`. Command parsing, help, validation, versions, and shell completions come from Effect rather than custom parsing.
+
+## HTTP API
+
+- `GET /api/scope`
+- `POST /api/context`
+- `POST /api/memories`
+- `POST /api/search`
+- `POST /api/handoff`
 
 ## Supermemory Mapping
 
-- Isolation boundary: `containerTag`
-- Current convention: `agent-bus_repo_<sha256-12>`
-- Agent label: `metadata.agent`
-- Memory type: `metadata.type`
-- Repo path: `metadata.repoPath`
-- Source: `metadata.source = "agent-context-bus"`
+- Isolation: `containerTag = agent-bus_repo_<sha256-12>`
+- Agent provenance: `metadata.agent`
+- Memory kind: `metadata.type`
+- Repository: `metadata.repoPath`
+- Producer: `metadata.source = "agent-context-bus"`
 
-This avoids requiring Supermemory plugin internals to agree on scoping. The bus can coexist with Claude Code, Codex, and OpenCode plugins while offering a shared explicit layer.
+Every write and search includes the same repo `containerTag`. Writes use `/v4/memories`, bypassing Supermemory's LLM-powered ingestion pipeline. Searches use `searchMode = "memories"`. A handoff is both returned as Markdown and persisted with `type = "handoff"`.
 
-## Hackathon Demo Path
+The coding agent is the only reasoning model. Supermemory does not summarize or transform agent output in this architecture.
 
-1. Start Supermemory Local on `localhost:6767`.
-2. Start this app on `localhost:8787`.
-3. Add a memory as `claude-code` about a real debugging discovery.
-4. Search or generate handoff as `codex`.
-5. Show the UI proving the memory is local, repo-scoped, and agent-labeled.
+## Existing Integrations
 
-## Next Build Steps
+Claude Code, Codex, and OpenCode already have Supermemory plugins. They can coexist with this bus, but their default prefixes and capture behavior are not the cross-agent protocol. The MVP uses explicit generated skills so every shell-capable agent can participate consistently.
 
-- Add plugin-specific importers for Claude/Codex/OpenCode logs.
-- Add pin/forget actions against Supermemory memory IDs.
-- Add contradiction review by grouping memories with similar topics but conflicting claims.
-- Add a tiny CLI wrapper: `agent-bus remember`, `agent-bus search`, `agent-bus handoff`.
+Supermemory's documented MCP server is hosted and supplies generic `memory`, `recall`, and `context` tools. A future local MCP adapter should expose this MVP's `context`, `remember`, `search`, and `handoff` operations while retaining Supermemory Local as the backend.
+
+## Demo
+
+1. Start Supermemory Local.
+2. Run `agent-context-bus init` and `agent-context-bus dev`.
+3. Claude Code saves a debugging discovery.
+4. Codex requests task context and sees the Claude-origin memory.
+5. Codex completes part of the task and creates a handoff to OpenCode.
+6. Show the inspector and Supermemory request metadata proving local repo scope and provenance.
+
+## Next Steps
+
+- Package and publish the npx command.
+- Add a local MCP transport over the same core operations.
+- Add list and forget operations.
+- Add optional native hooks that invoke context and handoff automatically.
+- Add contradiction review without hiding the source memories.

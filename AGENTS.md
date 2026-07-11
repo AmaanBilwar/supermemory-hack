@@ -29,14 +29,15 @@ Core idea: multiple coding agents should share one local, private, per-repo memo
 
 - Target local API: `http://localhost:6767`
 - Start Supermemory Local with `npx supermemory local` or `supermemory-server`
-- Use the API key printed on first boot as `SUPERMEMORY_API_KEY`
+- Localhost requests are auto-authenticated; use `SUPERMEMORY_API_KEY=local` as the client placeholder
+- Write agent-authored knowledge directly with `/v4/memories`; do not use LLM-powered document ingestion
 - Use local-first behavior as a product constraint: repo context and agent handoffs should not require a cloud service
 
 ## Effect
 
 - This repo uses Effect v4 beta.
 - Keep `effect` and any `@effect/*` packages on matching beta versions.
-- The local Effect source is available at `./.repos/effect`, symlinked from `/home/amaan/code/effect`.
+- The Effect v4 source (`effect-smol`) is available at `./.repos/effect`.
 - Prefer `Effect.fn`, `Effect.gen`, typed errors, `Schema` at boundaries, and service/layer dependency injection.
 - Do not use `@effect/platform` directly for app HTTP. If Effect HTTP is needed, use `effect/unstable/http` and node adapters from `@effect/platform-node@4.x`.
 
@@ -56,3 +57,16 @@ Core idea: multiple coding agents should share one local, private, per-repo memo
 
 - Do not commit local Supermemory data, API keys, or `.env` files.
 - Do not build the app unless explicitly asked.
+
+<!-- agent-context-bus:start -->
+## Agent Context Bus
+
+Use the local Agent Context Bus to preserve repo context across coding agents.
+
+- Before substantial work: `agent-context-bus context --agent <your-name> --task "<task>"`
+- Save durable discoveries: `agent-context-bus remember --agent <your-name> --type <type> --content "<fact>"`
+- Search explicitly: `agent-context-bus search --query "<question>"`
+- Before switching agents: `agent-context-bus handoff --from <your-name> --to <next-agent> --task "<task>" --summary "<current state>"`
+- Treat recalled memories as leads and verify them against the current code.
+- Never store secrets, API keys, or content marked private.
+<!-- agent-context-bus:end -->
