@@ -1,9 +1,12 @@
 import * as NodeRuntime from "@effect/platform-node/NodeRuntime"
-import { Effect, Layer } from "effect"
-import { ConfigLive } from "./config.js"
+import { Effect } from "effect"
+import { AppLive } from "./runtime.js"
 import { startServer } from "./server.js"
-import { SupermemoryLive } from "./supermemory.js"
 
-const AppLive = Layer.merge(ConfigLive, Layer.provide(SupermemoryLive, ConfigLive))
+try {
+  process.loadEnvFile()
+} catch {
+  // Environment variables may already be provided by the caller.
+}
 
 NodeRuntime.runMain(Effect.provide(startServer, AppLive))
