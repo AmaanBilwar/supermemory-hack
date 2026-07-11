@@ -23,7 +23,7 @@ const readEnv = Effect.fn("Config.readEnv")(function*(name: string, fallback?: s
 export const ConfigLive = Layer.effect(
   AppConfig,
   Effect.gen(function*() {
-    const supermemoryApiKey = yield* readEnv("SUPERMEMORY_API_KEY")
+    const supermemoryApiKey = yield* readEnv("SUPERMEMORY_API_KEY", "local")
     const supermemoryApiUrl = yield* readEnv("SUPERMEMORY_API_URL", "http://localhost:6767")
     const rawPort = yield* readEnv("PORT", "8787")
     const port = Number.parseInt(rawPort, 10)

@@ -2,7 +2,7 @@ import { Context, Effect, Layer, Schema } from "effect"
 import { AppConfig } from "./config.js"
 import {
   AddMemoryRequest,
-  DocumentResponse,
+  CreateMemoriesResponse,
   SearchRequest,
   SearchResponse,
   StoredMemory,
@@ -10,17 +10,19 @@ import {
 } from "./domain.js"
 import { makeRepoScope } from "./scope.js"
 
-interface AddDocumentBody {
-  readonly content: string
+interface CreateMemoriesBody {
   readonly containerTag: string
-  readonly customId?: string
-  readonly metadata: Record<string, string | number | boolean>
+  readonly memories: ReadonlyArray<{
+    readonly content: string
+    readonly isStatic: boolean
+    readonly metadata: Record<string, string | number | boolean>
+  }>
 }
 
 interface SearchBody {
   readonly q: string
   readonly containerTag: string
-  readonly searchMode: "hybrid"
+  readonly searchMode: "memories"
   readonly limit: number
   readonly filters?: {
     readonly AND: ReadonlyArray<{ readonly key: string; readonly value: string }>
@@ -43,13 +45,13 @@ const parseJson = (response: Response) =>
     catch: (error) => SupermemoryError.make({ status: response.status, message: String(error) })
   })
 
-const decodeDocument = Schema.decodeUnknownEffect(DocumentResponse)
+const decodeCreatedMemories = Schema.decodeUnknownEffect(CreateMemoriesResponse)
 const decodeSearch = Schema.decodeUnknownEffect(SearchResponse)
 
 const requestJson = Effect.fn("Supermemory.requestJson")(function*(
   config: { readonly supermemoryApiKey: string; readonly supermemoryApiUrl: string },
   path: string,
-  body: AddDocumentBody | SearchBody
+  body: CreateMemoriesBody | SearchBody
 ) {
   const response = yield* Effect.tryPromise({
     try: () =>
@@ -87,27 +89,35 @@ export const SupermemoryLive = Layer.effect(
       const title = request.title ?? `${request.agent} ${type}`
       const customId = request.customId ?? `${scope.containerTag}:${request.agent}:${type}:${Date.now()}`
 
-      const body: AddDocumentBody = {
-        content: `# ${title}\n\n${request.content}`,
+      const body: CreateMemoriesBody = {
         containerTag: scope.containerTag,
-        customId,
-        metadata: {
-          agent: request.agent,
-          type,
-          repoPath: scope.repoPath,
-          source: "agent-context-bus",
-          title
-        }
+        memories: [{
+          content: `# ${title}\n\n${request.content}`,
+          isStatic: type === "architecture" || type === "project-config" || type === "preference",
+          metadata: {
+            agent: request.agent,
+            type,
+            repoPath: scope.repoPath,
+            source: "agent-context-bus",
+            title,
+            customId
+          }
+        }]
       }
 
-      const json = yield* requestJson(config, "/v3/documents", body)
-      const decoded = yield* decodeDocument(json).pipe(
+      const json = yield* requestJson(config, "/v4/memories", body)
+      const decoded = yield* decodeCreatedMemories(json).pipe(
         Effect.mapError((error) => SupermemoryError.make({ status: 502, message: String(error) }))
       )
+      const created = decoded.memories[0]
+
+      if (created === undefined) {
+        return yield* Effect.fail(SupermemoryError.make({ status: 502, message: "Supermemory created no memories" }))
+      }
 
       return {
-        id: decoded.id,
-        status: decoded.status ?? "queued",
+        id: created.id,
+        status: "stored",
         containerTag: scope.containerTag
       }
     })
@@ -118,7 +128,7 @@ export const SupermemoryLive = Layer.effect(
       const body: SearchBody = {
         q: request.q,
         containerTag: scope.containerTag,
-        searchMode: "hybrid",
+        searchMode: "memories",
         limit
       }
 

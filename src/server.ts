@@ -1,14 +1,16 @@
 import { Effect, Schema } from "effect"
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http"
 import { AppConfig, type AppConfigShape } from "./config.js"
-import { AddMemoryRequest, ApiError, SearchRequest } from "./domain.js"
-import { createHandoff } from "./handoff.js"
+import { AddMemoryRequest, ApiError, ContextRequest, HandoffRequest, SearchRequest } from "./domain.js"
+import { createContext, createHandoff } from "./handoff.js"
 import { makeRepoScope } from "./scope.js"
 import { indexHtml } from "./static.js"
 import { SupermemoryClient, type SupermemoryClientShape } from "./supermemory.js"
 
 const decodeAddMemory = Schema.decodeUnknownEffect(AddMemoryRequest)
 const decodeSearch = Schema.decodeUnknownEffect(SearchRequest)
+const decodeContext = Schema.decodeUnknownEffect(ContextRequest)
+const decodeHandoff = Schema.decodeUnknownEffect(HandoffRequest)
 
 const readBody = (request: IncomingMessage) =>
   Effect.callback<string, ApiError>((resume) => {
@@ -83,10 +85,23 @@ const handleRequest = (
       return yield* sendJson(response, 200, results)
     }
 
-    if (request.method === "GET" && requestUrl.pathname === "/api/handoff") {
-      const q = requestUrl.searchParams.get("q") ?? "latest project context"
-      const toAgent = requestUrl.searchParams.get("toAgent") ?? "next-agent"
-      const handoff = yield* createHandoff(client, SearchRequest.make({ q, limit: 8 }), toAgent).pipe(
+    if (request.method === "POST" && requestUrl.pathname === "/api/context") {
+      const body = yield* parseBody(request)
+      const decoded = yield* decodeContext(body).pipe(
+        Effect.mapError((error) => ApiError.make({ status: 400, message: String(error) }))
+      )
+      const context = yield* createContext(client, decoded).pipe(
+        Effect.mapError((error) => ApiError.make({ status: error.status || 502, message: error.message }))
+      )
+      return yield* sendText(response, 200, context, "text/markdown; charset=utf-8")
+    }
+
+    if (request.method === "POST" && requestUrl.pathname === "/api/handoff") {
+      const body = yield* parseBody(request)
+      const decoded = yield* decodeHandoff(body).pipe(
+        Effect.mapError((error) => ApiError.make({ status: 400, message: String(error) }))
+      )
+      const handoff = yield* createHandoff(client, decoded).pipe(
         Effect.mapError((error) => ApiError.make({ status: error.status || 502, message: error.message }))
       )
       return yield* sendText(response, 200, handoff, "text/markdown; charset=utf-8")

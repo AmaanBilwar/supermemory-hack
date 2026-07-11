@@ -44,11 +44,16 @@ export const indexHtml = `<!doctype html>
         </form>
         <form class="card" id="search-form">
           <h2>Search / Handoff</h2>
+          <label>Current agent</label>
+          <input name="fromAgent" value="manual" />
           <label>Query</label>
           <input name="q" placeholder="auth token bug" />
           <label>Target agent for handoff</label>
           <select name="toAgent"><option>codex</option><option>claude-code</option><option>opencode</option><option>manual</option></select>
+          <label>Current state</label>
+          <textarea name="summary" placeholder="What was discovered and what remains?"></textarea>
           <button name="mode" value="search">Search</button>
+          <button name="mode" value="context">Get task context</button>
           <button name="mode" value="handoff">Generate handoff</button>
         </form>
       </section>
@@ -72,9 +77,25 @@ export const indexHtml = `<!doctype html>
         event.preventDefault()
         const submitter = event.submitter
         const form = new FormData(event.currentTarget)
-        const mode = submitter && submitter.value === 'handoff' ? 'handoff' : 'search'
+        const mode = submitter ? submitter.value : 'search'
         if (mode === 'handoff') {
-          const response = await fetch('/api/handoff?q=' + encodeURIComponent(form.get('q')) + '&toAgent=' + encodeURIComponent(form.get('toAgent')))
+          const response = await fetch('/api/handoff', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              fromAgent: form.get('fromAgent'),
+              toAgent: form.get('toAgent'),
+              task: form.get('q'),
+              summary: form.get('summary')
+            })
+          })
+          show(await response.text())
+        } else if (mode === 'context') {
+          const response = await fetch('/api/context', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ agent: form.get('fromAgent'), task: form.get('q') })
+          })
           show(await response.text())
         } else {
           const response = await fetch('/api/search', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ q: form.get('q') }) })

@@ -1,6 +1,6 @@
 import { Schema } from "effect"
 
-export const AgentName = Schema.Literals(["claude-code", "codex", "opencode", "opencode-agent", "manual"])
+export const AgentName = Schema.NonEmptyString
 
 export const MemoryType = Schema.Literals([
   "architecture",
@@ -28,6 +28,24 @@ export class SearchRequest extends Schema.Class<SearchRequest>("SearchRequest")(
   limit: Schema.optional(Schema.Number)
 }) {}
 
+export class ContextRequest extends Schema.Class<ContextRequest>("ContextRequest")({
+  agent: AgentName,
+  task: Schema.NonEmptyString,
+  repoPath: Schema.optional(Schema.String),
+  limit: Schema.optional(Schema.Number)
+}) {}
+
+export class HandoffRequest extends Schema.Class<HandoffRequest>("HandoffRequest")({
+  fromAgent: AgentName,
+  toAgent: AgentName,
+  task: Schema.NonEmptyString,
+  summary: Schema.NonEmptyString,
+  repoPath: Schema.optional(Schema.String),
+  completed: Schema.optional(Schema.Array(Schema.String)),
+  nextSteps: Schema.optional(Schema.Array(Schema.String)),
+  blockers: Schema.optional(Schema.Array(Schema.String))
+}) {}
+
 export class ApiError extends Schema.TaggedErrorClass<ApiError>()("ApiError", {
   status: Schema.Number,
   message: Schema.String
@@ -42,9 +60,13 @@ export class SupermemoryError extends Schema.TaggedErrorClass<SupermemoryError>(
   message: Schema.String
 }) {}
 
-export class DocumentResponse extends Schema.Class<DocumentResponse>("DocumentResponse")({
+export class CreatedMemory extends Schema.Class<CreatedMemory>("CreatedMemory")({
   id: Schema.String,
-  status: Schema.optional(Schema.String)
+  memory: Schema.String
+}) {}
+
+export class CreateMemoriesResponse extends Schema.Class<CreateMemoriesResponse>("CreateMemoriesResponse")({
+  memories: Schema.Array(CreatedMemory)
 }) {}
 
 export class SearchResult extends Schema.Class<SearchResult>("SearchResult")({
